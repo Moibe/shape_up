@@ -1,0 +1,1 @@
+ALTER TABLE `cycles` ADD `client_id` integer REFERENCES clients(id);

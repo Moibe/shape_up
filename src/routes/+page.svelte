@@ -1,28 +1,36 @@
 <script lang="ts">
+  import { projectDotColor } from '$lib/project-colors';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
 </script>
 
 <section class="home">
   <div class="page-top">
-    <span class="app-eyebrow">ShapeUp Buzzword</span>
-    <a class="btn primary" href="/project/new">＋ Proyecto</a>
+    <span class="app-eyebrow">Shape Up Buzzword</span>
+    {#if data.user?.isAdmin}
+      <a class="btn primary" href="/project/new">＋ Proyecto</a>
+    {/if}
   </div>
 
   {#if data.projects.length === 0}
     <div class="welcome">
       <span class="badge">Empieza aquí</span>
-      <h1>Aún no tienes proyectos</h1>
-      <p>Cada proyecto es su propio mundo, con sus propios pitches y relojes. Crea el primero.</p>
-      <a class="btn primary" href="/project/new">＋ Nuevo proyecto</a>
+      {#if data.user?.isAdmin}
+        <h1>Aún no tienes proyectos</h1>
+        <p>Cada proyecto es su propio mundo, con sus propios pitches y relojes. Crea el primero.</p>
+        <a class="btn primary" href="/project/new">＋ Nuevo proyecto</a>
+      {:else}
+        <h1>Sin proyectos asignados</h1>
+        <p>Todavía no eres miembro de ningún proyecto. Pide a un administrador que te agregue.</p>
+      {/if}
     </div>
   {:else}
     <h1>Proyectos</h1>
     <p class="lead">Elige un proyecto para ver su tablero.</p>
     <div class="grid">
-      {#each data.projects as p (p.id)}
+      {#each data.projects as p, i (p.id)}
         <a class="card" href="/project/{p.id}">
-          <span class="dot" aria-hidden="true"></span>
+          <span class="dot" style="background: {projectDotColor(i)};" aria-hidden="true"></span>
           <h2>{p.name}</h2>
           <div class="stats">
             <span class="stat building">{p.building} en curso</span>

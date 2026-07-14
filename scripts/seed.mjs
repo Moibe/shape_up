@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { randomBytes, scryptSync } from 'node:crypto';
 
 // Seed (per-pitch time model): a demo project with pitches in a few states —
 // two building (their own clocks from today) and one shaped (betting table).
@@ -6,6 +7,17 @@ import Database from 'better-sqlite3';
 const url = process.env.DATABASE_URL ?? './local.db';
 const db = new Database(url);
 db.pragma('foreign_keys = ON');
+
+// ── Initial admin user (only if there are none) ──────────────────────────────
+// Same scrypt "salt:hash" format as src/lib/server/auth.ts. CHANGE THIS PASSWORD.
+const hashPw = (pw) => {
+	const salt = randomBytes(16);
+	return `${salt.toString('hex')}:${scryptSync(pw, salt, 64).toString('hex')}`;
+};
+if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0) {
+	db.prepare('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)').run('admin', hashPw('admin'));
+	console.log('Seeded initial user → username: admin · password: admin  (¡cámbiala!)');
+}
 
 const iso = (d) => d.toISOString().slice(0, 10);
 const addDays = (startIso, n) => {

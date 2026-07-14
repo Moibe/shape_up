@@ -44,6 +44,41 @@
     </div>
   </form>
 
+  <div class="members">
+    <h2>Miembros</h2>
+    <p class="hint">Quiénes (no-admins) pueden ver este proyecto. Los administradores lo ven siempre.</p>
+
+    {#if data.members.length === 0}
+      <p class="empty-note">Sin miembros asignados todavía.</p>
+    {:else}
+      <ul class="member-list">
+        {#each data.members as m (m.id)}
+          <li>
+            <span class="mname">
+              {m.username}{#if m.isAdmin}<span class="tag">admin</span>{/if}
+            </span>
+            <form method="POST" action="?/removeMember" use:enhance>
+              <input type="hidden" name="userId" value={m.id} />
+              <button class="btn danger sm" type="submit">Quitar</button>
+            </form>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
+    {#if data.candidates.length > 0}
+      <form method="POST" action="?/addMember" class="add-member" use:enhance>
+        <select name="userId">
+          {#each data.candidates as c (c.id)}<option value={c.id}>{c.username}</option>{/each}
+        </select>
+        <button class="btn primary sm" type="submit">Agregar miembro</button>
+      </form>
+    {:else}
+      <p class="hint">No hay más usuarios para agregar.</p>
+    {/if}
+    {#if form?.memberError}<span class="err" role="alert">{form.memberError}</span>{/if}
+  </div>
+
   <div class="danger-zone">
     <h2>Archivar o borrar</h2>
     <div class="dz-actions">
@@ -177,6 +212,82 @@
     background: rgba(220, 38, 38, 0.06);
     border-color: #dc2626;
   }
+  .members {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #f1f5f9;
+  }
+  .members h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111111;
+    margin: 0 0 0.3rem;
+  }
+  .members .hint {
+    display: block;
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin: 0 0 0.9rem;
+  }
+  .empty-note {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin: 0 0 0.9rem;
+  }
+  .member-list {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .member-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.8rem;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+  .mname {
+    font-weight: 600;
+    color: #111111;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .mname .tag {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.1);
+    border: 1px solid rgba(22, 163, 74, 0.3);
+    border-radius: 999px;
+    padding: 0.05rem 0.4rem;
+  }
+  .add-member {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .add-member select {
+    font: inherit;
+    color: #111111;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    min-width: 160px;
+  }
+  .btn.sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+  }
+
   .danger-zone {
     margin-top: 2.5rem;
     padding-top: 1.5rem;

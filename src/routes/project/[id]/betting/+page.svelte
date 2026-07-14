@@ -8,18 +8,18 @@
   const world = $derived(data.world);
   const shaped = $derived(data.shaped);
   const seg = $derived(world.projectId === null ? 'internal' : String(world.projectId));
+  const isAdmin = $derived(data.user?.isAdmin ?? false);
 
-  const appetiteLabel = (a: string) => (a === 'small' ? 'small · 2 sem' : 'big · 6 sem');
+  const appetiteLabel = (a: string) => (a === 'small' ? 'chico · 2 sem' : 'grande · 6 sem');
 </script>
 
 <section class="betting">
   <div class="page-top">
     <ViewNav project={seg} />
-    <a class="btn primary" href="/pitch/new?project={world.projectId ?? ''}">＋ Nuevo pitch</a>
   </div>
 
   <header class="head">
-    <span class="eyebrow">{world.label} · betting table</span>
+    <span class="eyebrow">Betting table</span>
     <h1>¿Qué arrancamos?</h1>
     <p class="lead">Pitches shaped de este proyecto. Arrancar le da a cada uno su propio reloj (build + cooldown).</p>
   </header>
@@ -52,10 +52,12 @@
             <span>·</span>
             <span>{p.nogos.length} no-go{p.nogos.length === 1 ? '' : 's'}</span>
           </div>
-          <form method="POST" action="?/start" use:enhance class="bet-form">
-            <input type="hidden" name="pitchId" value={p.id} />
-            <button class="btn bet" type="submit">Arrancar ({p.appetite === 'small' ? '2' : '6'} sem)</button>
-          </form>
+          {#if isAdmin}
+            <form method="POST" action="?/start" use:enhance class="bet-form">
+              <input type="hidden" name="pitchId" value={p.id} />
+              <button class="btn bet" type="submit">Arrancar ({p.appetite === 'small' ? '2' : '6'} sem)</button>
+            </form>
+          {/if}
         </article>
       {/each}
     </div>
@@ -85,13 +87,6 @@
     border: 1px solid transparent;
     cursor: pointer;
     text-decoration: none;
-  }
-  .btn.primary {
-    background: #2563eb;
-    color: #ffffff;
-  }
-  .btn.primary:hover {
-    background: #1d4ed8;
   }
 
   .head {

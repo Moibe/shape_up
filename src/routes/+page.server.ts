@@ -1,13 +1,21 @@
 import type { PageServerLoad } from './$types';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { eq } from 'drizzle-orm';
 import { projects } from '$lib/server/db/schema';
+import { memberProjectIds } from '$lib/server/access';
 
-// Home: a mosaic of all active projects with a quick summary of each. (No longer
-// redirects to the first project — this is the overview / picker.)
-export const load: PageServerLoad = async () => {
+// Home: mosaic of the projects the current user can see (admins: all; regular
+// users: only their member projects), with a quick summary of each.
+export const load: PageServerLoad = async ({ locals }) => {
+	let ids: number[] | null = null;
+	if (!locals.user!.isAdmin) {
+		ids = await memberProjectIds(locals.user!.id);
+		if (ids.length === 0) return { projects: [] };
+	}
+	const scope = ids ? inArray(projects.id, ids) : undefined;
+
 	const rows = await db.query.projects.findMany({
-		where: eq(projects.archived, false),
+		where: scope ? and(eq(projects.archived, false), scope) : eq(projects.archived, false),
 		with: { pitches: { columns: { status: true } } },
 		orderBy: (p, { asc }) => [asc(p.name)]
 	});

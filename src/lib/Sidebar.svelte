@@ -3,18 +3,21 @@
   // seleccionar uno scopea el Dashboard/Betting a ese proyecto. "Trabajo interno"
   // agrupa los pitches sin proyecto. Mantiene el tilt 3D y el handle de repliegue.
   import { page } from '$app/state';
+  import { projectDotColor } from '$lib/project-colors';
 
   type ProjectOpt = { id: number; name: string };
   let {
     collapsed = false,
     toggleCollapsed,
     projects = [],
-    archivedCount = 0
+    archivedCount = 0,
+    isAdmin = false
   }: {
     collapsed?: boolean;
     toggleCollapsed: () => void;
     projects?: ProjectOpt[];
     archivedCount?: number;
+    isAdmin?: boolean;
   } = $props();
 
   let tiltX = $state(0);
@@ -30,6 +33,7 @@
   // Segmento de proyecto actual en la URL (/project/<seg>[/...]) para resaltar.
   const currentSeg = $derived(page.url.pathname.match(/^\/project\/([^/]+)/)?.[1] ?? null);
   const isActive = (seg: string) => currentSeg === seg;
+
 
   function handleMove(e: MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -61,23 +65,17 @@
   >
     <span class="section">Proyectos</span>
     <nav>
-      {#each projects as c (c.id)}
+      {#each projects as c, i (c.id)}
         <a
           href="/project/{c.id}"
           class="nav-item"
           aria-current={isActive(String(c.id)) ? 'page' : undefined}
         >
-          <span class="dot" aria-hidden="true"></span>
+          <span class="dot" style="background: {projectDotColor(i)};" aria-hidden="true"></span>
           <span class="name">{c.name}</span>
         </a>
       {/each}
-      <a href="/project/internal" class="nav-item internal" aria-current={isActive('internal') ? 'page' : undefined}>
-        <span class="dot" aria-hidden="true"></span>
-        <span class="name">Trabajo interno</span>
-      </a>
     </nav>
-
-    <a href="/project/new" class="add-project">＋ Proyecto</a>
 
     {#if archivedCount > 0}
       <a
@@ -86,6 +84,17 @@
         aria-current={page.url.pathname === '/archived' ? 'page' : undefined}
       >
         Archivados ({archivedCount})
+      </a>
+    {/if}
+
+    {#if isAdmin}
+      <a
+        href="/users"
+        class="admin-link"
+        aria-current={page.url.pathname.startsWith('/users') ? 'page' : undefined}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+        Usuarios
       </a>
     {/if}
 
@@ -167,9 +176,6 @@
     background: #16a34a;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
-  .internal .dot {
-    background: #9ca3af;
-  }
   .nav-item:hover {
     background: rgba(22, 163, 74, 0.08);
     border-color: rgba(22, 163, 74, 0.25);
@@ -184,25 +190,6 @@
   .nav-item[aria-current='page'] .dot {
     background: #2563eb;
   }
-  .add-project {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.6rem;
-    padding: 0.55rem 0.9rem;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
-    color: #2563eb;
-    font-size: 0.88rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: background 0.16s ease, border-color 0.16s ease;
-  }
-  .add-project:hover {
-    background: rgba(37, 99, 235, 0.06);
-    border-color: #2563eb;
-    border-style: solid;
-  }
   .archived-link {
     margin-top: 0.5rem;
     padding: 0.4rem 0.9rem;
@@ -216,6 +203,26 @@
     background: #f3f4f6;
   }
   .archived-link[aria-current='page'] {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.08);
+  }
+  .admin-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4b5563;
+    text-decoration: none;
+    border-radius: 8px;
+  }
+  .admin-link:hover {
+    color: #111111;
+    background: #f3f4f6;
+  }
+  .admin-link[aria-current='page'] {
     color: #1d4ed8;
     background: rgba(37, 99, 235, 0.08);
   }

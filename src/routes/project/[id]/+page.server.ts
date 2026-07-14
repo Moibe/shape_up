@@ -4,12 +4,15 @@ import { db } from '$lib/server/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { pitches, projects } from '$lib/server/db/schema';
 import { resolveProject } from '$lib/server/project-context';
+import { requireAdmin } from '$lib/server/access';
 import { pitchClock, todayIso } from '$lib/server/pitch-dates';
 
 // Project dashboard: this project's in-flight work (building pitches, each with its
-// OWN clock) and its drafts. No shared cycle — the clock lives on the pitch.
-export const load: PageServerLoad = async ({ params }) => {
-	const world = await resolveProject(params.id);
+// OWN clock). No shared cycle — the clock lives on the pitch. The project header
+// (name, counts) and rename/settings live in the project layout, not here; the
+// `rename` action below stays as the endpoint that header's form posts to.
+export const load: PageServerLoad = async ({ params, locals }) => {
+	const world = await resolveProject(params.id, locals.user);
 	const projectMatch =
 		world.projectId === null ? isNull(pitches.projectId) : eq(pitches.projectId, world.projectId);
 
@@ -21,18 +24,14 @@ export const load: PageServerLoad = async ({ params }) => {
 	const today = todayIso();
 	const building = buildingRows.map((p) => ({ ...p, clock: pitchClock(p, today) }));
 
-	const drafts = await db.query.pitches.findMany({
-		where: and(eq(pitches.status, 'draft'), projectMatch),
-		orderBy: (p, { desc }) => [desc(p.createdAt)]
-	});
-
-	return { world, building, drafts };
+	return { world, building };
 };
 
 export const actions: Actions = {
-	// Inline rename from the dashboard header. Internal work has no editable name.
-	rename: async ({ request, params }) => {
-		const world = await resolveProject(params.id);
+	// Inline rename, posted from the project layout header. Internal work has no editable name.
+	rename: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
+		const world = await resolveProject(params.id, locals.user);
 		if (world.projectId === null) {
 			return fail(400, { renameError: 'El trabajo interno no se puede renombrar.' });
 		}
@@ -44,8 +43,9 @@ export const actions: Actions = {
 	},
 
 	// Restore an archived project back to the active list.
-	unarchive: async ({ params }) => {
-		const world = await resolveProject(params.id);
+	unarchive: async ({ params, locals }) => {
+		requireAdmin(locals.user);
+		const world = await resolveProject(params.id, locals.user);
 		if (world.projectId === null) return fail(400, { renameError: 'No aplica.' });
 		await db.update(projects).set({ archived: false }).where(eq(projects.id, world.projectId));
 		throw redirect(303, `/project/${world.projectId}`);

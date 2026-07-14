@@ -6,12 +6,18 @@
   let { project }: { project: string } = $props();
 
   const base = $derived(`/project/${project}`);
-  const onBetting = $derived(page.url.pathname.endsWith('/betting'));
+  const path = $derived(page.url.pathname);
+  const onDrafts = $derived(path.endsWith('/drafts'));
+  const onBetting = $derived(path.endsWith('/betting'));
+  const onDone = $derived(path.endsWith('/done'));
+  const onDashboard = $derived(!onDrafts && !onBetting && !onDone);
 </script>
 
 <nav class="view-nav">
-  <a href={base} class="tab" aria-current={onBetting ? undefined : 'page'}>Dashboard</a>
+  <a href="{base}/drafts" class="tab" aria-current={onDrafts ? 'page' : undefined}>Borradores</a>
   <a href="{base}/betting" class="tab" aria-current={onBetting ? 'page' : undefined}>Betting table</a>
+  <a href={base} class="tab" aria-current={onDashboard ? 'page' : undefined}>Dashboard</a>
+  <a href="{base}/done" class="tab" aria-current={onDone ? 'page' : undefined}>Terminados</a>
 </nav>
 
 <style>

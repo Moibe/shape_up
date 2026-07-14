@@ -32,15 +32,24 @@
   <link rel="icon" href={favicon} />
 </svelte:head>
 
-<TopNav />
-<Sidebar {collapsed} {toggleCollapsed} projects={data.projects} archivedCount={data.archivedCount} />
-<main class={collapsed ? 'collapsed' : ''}>
-  <div class="work-scroll">
-    {@render children()}
-  </div>
-</main>
-
-<ConfirmModal />
+{#if data.user}
+  <TopNav user={data.user} />
+  <Sidebar
+    {collapsed}
+    {toggleCollapsed}
+    projects={data.projects}
+    archivedCount={data.archivedCount}
+    isAdmin={data.user.isAdmin}
+  />
+  <main class={collapsed ? 'collapsed' : ''}>
+    <div class="work-scroll">
+      {@render children()}
+    </div>
+  </main>
+  <ConfirmModal />
+{:else}
+  {@render children()}
+{/if}
 
 <style>
   :global(:root) {

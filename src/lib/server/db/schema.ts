@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm';
-import { sqliteTable, integer, text, check } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, check, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shape Up domain schema (per-pitch time model). Cardinalities are the source of
@@ -39,9 +39,12 @@ export const pitches = sqliteTable(
 		appetite: text('appetite', { enum: APPETITES }).notNull(),
 		// Fat-marker sketch, deliberately abstract.
 		solutionSketch: text('solution_sketch'),
-		// MVP: the pitch's data model as structured Markdown (entities + relations +
-		// cardinalities). Phase 2 would promote this to first-class relational data.
+		// Legacy: the pitch's data model as structured Markdown. Kept for read-only
+		// display of older pitches; new models use the graphical diagram below.
 		dataModel: text('data_model'),
+		// Graphical data model (mini ER diagram) as JSON:
+		// { entities: [{id,name,x,y}], rels: [{id,from,to,kind,label}] }.
+		dataModelDiagram: text('data_model_diagram'),
 		status: text('status', { enum: PITCH_STATUSES }).notNull().default('draft'),
 		// Nullable: internal work has no project.
 		projectId: integer('project_id').references(() => projects.id),
@@ -64,6 +67,16 @@ export const pitches = sqliteTable(
 export const nogos = sqliteTable('nogos', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	// First-class rows, not free text buried in the pitch.
+	pitchId: integer('pitch_id')
+		.notNull()
+		.references(() => pitches.id, { onDelete: 'cascade' }),
+	text: text('text').notNull()
+});
+
+// Rabbit holes: the risky spots identified during shaping (things that could
+// swallow the appetite if not pre-solved). Guard rails alongside no-gos.
+export const rabbitHoles = sqliteTable('rabbit_holes', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	pitchId: integer('pitch_id')
 		.notNull()
 		.references(() => pitches.id, { onDelete: 'cascade' }),
@@ -101,6 +114,46 @@ export const tasks = sqliteTable('tasks', {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Auth — the person "in" the system is a user who logs in. Session-based auth.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const users = sqliteTable('users', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	username: text('username').notNull().unique(),
+	// scrypt hash stored as "saltHex:hashHex".
+	passwordHash: text('password_hash').notNull(),
+	// Admins manage users; regular users don't see the Usuarios menu.
+	isAdmin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
+	createdAt: text('created_at')
+		.notNull()
+		.default(sql`(datetime('now'))`)
+});
+
+export const sessions = sqliteTable('sessions', {
+	// SHA-256 of the session token (the raw token lives only in the cookie).
+	id: text('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	expiresAt: integer('expires_at').notNull() // unix ms
+});
+
+// Which (non-admin) users can see which projects. Admins see all regardless.
+export const projectMembers = sqliteTable(
+	'project_members',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' })
+	},
+	(t) => [uniqueIndex('project_members_unique').on(t.projectId, t.userId)]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relations — mirror the cardinalities above for typed relational queries.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -111,11 +164,16 @@ export const projectsRelations = relations(projects, ({ many }) => ({
 export const pitchesRelations = relations(pitches, ({ one, many }) => ({
 	project: one(projects, { fields: [pitches.projectId], references: [projects.id] }),
 	scopes: many(scopes),
-	nogos: many(nogos)
+	nogos: many(nogos),
+	rabbitHoles: many(rabbitHoles)
 }));
 
 export const nogosRelations = relations(nogos, ({ one }) => ({
 	pitch: one(pitches, { fields: [nogos.pitchId], references: [pitches.id] })
+}));
+
+export const rabbitHolesRelations = relations(rabbitHoles, ({ one }) => ({
+	pitch: one(pitches, { fields: [rabbitHoles.pitchId], references: [pitches.id] })
 }));
 
 export const scopesRelations = relations(scopes, ({ one, many }) => ({
@@ -134,5 +192,8 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 export type Project = typeof projects.$inferSelect;
 export type Pitch = typeof pitches.$inferSelect;
 export type Nogo = typeof nogos.$inferSelect;
+export type RabbitHole = typeof rabbitHoles.$inferSelect;
 export type Scope = typeof scopes.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type Session = typeof sessions.$inferSelect;

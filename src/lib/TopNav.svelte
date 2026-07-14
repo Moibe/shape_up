@@ -1,5 +1,8 @@
 <script lang="ts">
-  // Barra superior clara con tilt 3D al pasar el mouse. Solo la marca (sin ítems de nav).
+  // Barra superior clara con tilt 3D al pasar el mouse. Marca + área de usuario.
+  import Avatar from '$lib/Avatar.svelte';
+  let { user }: { user: { username: string } } = $props();
+
   let tiltX = $state(0);
   let tiltY = $state(0);
 
@@ -25,9 +28,27 @@
   onmouseleave={handleLeave}
 >
   <a href="/" class="brand" aria-label="Inicio">
-    <span class="brand-ico" aria-hidden="true"></span>
-    <span class="brand-title">ShapeUp Buzzword</span>
+    <svg class="brand-ico" viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <linearGradient id="brand-mtn" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%" stop-color="#2563eb" />
+          <stop offset="100%" stop-color="#16a34a" />
+        </linearGradient>
+      </defs>
+      <path d="M2 20 L9 6 L12 12 L16 8 L22 20 Z" fill="url(#brand-mtn)" />
+    </svg>
+    <span class="brand-title">Shape Up Buzzword</span>
   </a>
+
+  <div class="user-area">
+    <a class="who" href="/me" title="Mi usuario">
+      <Avatar username={user.username} size={28} />
+      <span class="who-name">{user.username}</span>
+    </a>
+    <form method="POST" action="/logout">
+      <button class="logout" type="submit">Salir</button>
+    </form>
+  </div>
 </header>
 
 <style>
@@ -70,19 +91,52 @@
     background: rgba(37, 99, 235, 0.06);
   }
   .brand-ico {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
-    /* Vivo azul → verde en el logo. */
-    background: linear-gradient(135deg, #2563eb 0%, #16a34a 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    display: block;
   }
   .brand-title {
     font-size: 1.2rem;
     font-weight: 600;
     letter-spacing: 0.005em;
     color: #111111;
+  }
+
+  .user-area {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+  }
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #374151;
+    text-decoration: none;
+  }
+  .who:hover .who-name {
+    color: #2563eb;
+  }
+  .who-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .logout {
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #374151;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+  }
+  .logout:hover {
+    border-color: #2563eb;
+    color: #2563eb;
   }
 
   /* En pantallas chicas: oculta el título de la marca para que no se desborde. */

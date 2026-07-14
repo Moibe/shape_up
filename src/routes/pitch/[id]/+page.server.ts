@@ -1,13 +1,22 @@
 import type { Actions, PageServerLoad } from './$types';
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { and, eq, sql } from 'drizzle-orm';
-import { nogos, pitches, scopes, type ScopeStatus } from '$lib/server/db/schema';
+import {
+	nogos,
+	rabbitHoles,
+	pitches,
+	scopes,
+	type ScopeStatus,
+	type Appetite,
+	type PitchStatus
+} from '$lib/server/db/schema';
 import { pitchClock } from '$lib/server/pitch-dates';
+import { requireAdmin, isMember } from '$lib/server/access';
 
 // Pitch Detail: read the pitch with its relations, plus inline CRUD for its
-// scopes and no-gos (first-class children of the pitch).
-export const load: PageServerLoad = async ({ params }) => {
+// scopes and no-gos. Viewing needs project visibility; all writes are admin-only.
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
 	if (!Number.isInteger(id)) throw error(404, 'Pitch no encontrado');
 
@@ -16,11 +25,17 @@ export const load: PageServerLoad = async ({ params }) => {
 		with: {
 			project: true,
 			nogos: true,
+			rabbitHoles: true,
 			scopes: { orderBy: (s, { asc }) => [asc(s.sortOrder)] }
 		}
 	});
 
 	if (!pitch) throw error(404, 'Pitch no encontrado');
+
+	const canSee =
+		locals.user?.isAdmin ||
+		(pitch.projectId != null && !!locals.user && (await isMember(locals.user.id, pitch.projectId)));
+	if (!canSee) throw error(404, 'Pitch no encontrado');
 
 	// Per-pitch clock (build/cooldown phase), derived from its dates.
 	const clock = pitch.status === 'building' ? pitchClock(pitch) : null;
@@ -44,9 +59,84 @@ function statusFromHill(hill: number): ScopeStatus {
 }
 
 export const actions: Actions = {
-	// Close the pitch: building → done. The date was a ceiling, not a floor —
-	// finishing (early or on time) is explicit.
-	finish: async ({ params }) => {
+	// Inline per-field edit (the ✎ on each section). One field at a time.
+	updateField: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
+		const id = pitchId(params);
+		const current = await db.query.pitches.findFirst({ where: eq(pitches.id, id) });
+		if (!current) throw error(404, 'Pitch no encontrado');
+
+		const fd = await request.formData();
+		const field = String(fd.get('field') ?? '');
+		const value = String(fd.get('value') ?? '').trim();
+
+		switch (field) {
+			case 'title':
+				if (!value) return fail(400, { fieldError: 'El título es obligatorio.', field });
+				await db.update(pitches).set({ title: value }).where(eq(pitches.id, id));
+				break;
+			case 'problem':
+				if (!value) return fail(400, { fieldError: 'Describe el problema.', field });
+				await db.update(pitches).set({ problem: value }).where(eq(pitches.id, id));
+				break;
+			case 'appetite':
+				if (value !== 'small' && value !== 'big')
+					return fail(400, { fieldError: 'Tamaño inválido.', field });
+				await db.update(pitches).set({ appetite: value as Appetite }).where(eq(pitches.id, id));
+				break;
+			case 'solutionSketch':
+				await db.update(pitches).set({ solutionSketch: value || null }).where(eq(pitches.id, id));
+				break;
+			case 'dataModel':
+				await db.update(pitches).set({ dataModel: value || null }).where(eq(pitches.id, id));
+				break;
+			case 'dataModelDiagram': {
+				// JSON del diagrama ER (o vacío => null). Validamos que parsee.
+				if (value) {
+					try {
+						JSON.parse(value);
+					} catch {
+						return fail(400, { fieldError: 'Diagrama inválido.', field });
+					}
+				}
+				await db
+					.update(pitches)
+					.set({ dataModelDiagram: value || null })
+					.where(eq(pitches.id, id));
+				break;
+			}
+			case 'status': {
+				if (current.status === 'building' || current.status === 'done') {
+					return fail(409, { fieldError: 'El estado se gestiona por acciones, no aquí.', field });
+				}
+				if (!['draft', 'shaped', 'rejected'].includes(value)) {
+					return fail(400, { fieldError: 'Estado inválido.', field });
+				}
+				await db.update(pitches).set({ status: value as PitchStatus }).where(eq(pitches.id, id));
+				break;
+			}
+			default:
+				return fail(400, { fieldError: 'Campo inválido.', field });
+		}
+		return { fieldSaved: field };
+	},
+
+	// Delete the whole pitch (moved here from the old edit page).
+	deletePitch: async ({ params, locals }) => {
+		requireAdmin(locals.user);
+		const id = pitchId(params);
+		const p = await db.query.pitches.findFirst({
+			where: eq(pitches.id, id),
+			columns: { projectId: true }
+		});
+		// FK cascade removes its scopes and nogos.
+		await db.delete(pitches).where(eq(pitches.id, id));
+		throw redirect(303, p?.projectId != null ? `/project/${p.projectId}` : '/');
+	},
+
+	// Close the pitch: building → done.
+	finish: async ({ params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		await db
 			.update(pitches)
@@ -55,9 +145,9 @@ export const actions: Actions = {
 		return { finished: true };
 	},
 
-	// Hill chart drag: persist a scope's hill_position and derive its status
-	// (crossing 50 → downhill, reaching 100 → done). Cut scopes stay put.
-	setHill: async ({ request, params }) => {
+	// Hill chart drag: persist a scope's hill_position and derive its status.
+	setHill: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const fd = await request.formData();
 		const scopeId = Number(fd.get('scopeId'));
@@ -79,7 +169,8 @@ export const actions: Actions = {
 		return { hillMoved: true };
 	},
 
-	addScope: async ({ request, params }) => {
+	addScope: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const fd = await request.formData();
 		const name = String(fd.get('name') ?? '').trim();
@@ -91,16 +182,12 @@ export const actions: Actions = {
 			.from(scopes)
 			.where(eq(scopes.pitchId, id));
 
-		await db.insert(scopes).values({
-			pitchId: id,
-			name,
-			isCore,
-			sortOrder: (max ?? -1) + 1
-		});
+		await db.insert(scopes).values({ pitchId: id, name, isCore, sortOrder: (max ?? -1) + 1 });
 		return { scopeAdded: true };
 	},
 
-	updateScope: async ({ request, params }) => {
+	updateScope: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const fd = await request.formData();
 		const scopeId = Number(fd.get('scopeId'));
@@ -117,7 +204,8 @@ export const actions: Actions = {
 		return { scopeUpdated: true };
 	},
 
-	deleteScope: async ({ request, params }) => {
+	deleteScope: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const scopeId = Number((await request.formData()).get('scopeId'));
 		if (!Number.isInteger(scopeId)) throw error(400, 'Scope inválido');
@@ -126,7 +214,8 @@ export const actions: Actions = {
 	},
 
 	// Scope hammering: cut a scope out of the build (status = 'cut').
-	cutScope: async ({ request, params }) => {
+	cutScope: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const scopeId = Number((await request.formData()).get('scopeId'));
 		if (!Number.isInteger(scopeId)) throw error(400, 'Scope inválido');
@@ -138,7 +227,8 @@ export const actions: Actions = {
 	},
 
 	// Put a cut scope back on the hill; its status follows its hill position.
-	restoreScope: async ({ request, params }) => {
+	restoreScope: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const scopeId = Number((await request.formData()).get('scopeId'));
 		if (!Number.isInteger(scopeId)) throw error(400, 'Scope inválido');
@@ -153,7 +243,8 @@ export const actions: Actions = {
 		return { scopeRestored: true };
 	},
 
-	addNogo: async ({ request, params }) => {
+	addNogo: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const text = String((await request.formData()).get('text') ?? '').trim();
 		if (!text) return fail(400, { nogoError: 'Escribe el no-go.' });
@@ -161,11 +252,32 @@ export const actions: Actions = {
 		return { nogoAdded: true };
 	},
 
-	deleteNogo: async ({ request, params }) => {
+	deleteNogo: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
 		const id = pitchId(params);
 		const nogoId = Number((await request.formData()).get('nogoId'));
 		if (!Number.isInteger(nogoId)) throw error(400, 'No-go inválido');
 		await db.delete(nogos).where(and(eq(nogos.id, nogoId), eq(nogos.pitchId, id)));
 		return { nogoDeleted: true };
+	},
+
+	addRabbitHole: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
+		const id = pitchId(params);
+		const text = String((await request.formData()).get('text') ?? '').trim();
+		if (!text) return fail(400, { rabbitHoleError: 'Escribe el rabbit hole.' });
+		await db.insert(rabbitHoles).values({ pitchId: id, text });
+		return { rabbitHoleAdded: true };
+	},
+
+	deleteRabbitHole: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
+		const id = pitchId(params);
+		const rabbitHoleId = Number((await request.formData()).get('rabbitHoleId'));
+		if (!Number.isInteger(rabbitHoleId)) throw error(400, 'Rabbit hole inválido');
+		await db
+			.delete(rabbitHoles)
+			.where(and(eq(rabbitHoles.id, rabbitHoleId), eq(rabbitHoles.pitchId, id)));
+		return { rabbitHoleDeleted: true };
 	}
 };

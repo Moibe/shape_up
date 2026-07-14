@@ -1,11 +1,18 @@
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { projects } from '$lib/server/db/schema';
+import { requireAdmin } from '$lib/server/access';
 
-// Create a project directly (without going through a pitch). Lands on its dashboard.
+// Create a project — admin only. Lands on its dashboard.
+export const load: PageServerLoad = async ({ locals }) => {
+	requireAdmin(locals.user);
+	return {};
+};
+
 export const actions: Actions = {
-	default: async ({ request }) => {
+	default: async ({ request, locals }) => {
+		requireAdmin(locals.user);
 		const fd = await request.formData();
 		const name = String(fd.get('name') ?? '').trim();
 		const notes = String(fd.get('notes') ?? '').trim();

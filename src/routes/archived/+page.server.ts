@@ -1,12 +1,20 @@
 import type { PageServerLoad } from './$types';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { eq } from 'drizzle-orm';
 import { projects } from '$lib/server/db/schema';
+import { memberProjectIds } from '$lib/server/access';
 
-// Archived projects: soft-deleted (had pitches). Reachable to review or restore.
-export const load: PageServerLoad = async () => {
+// Archived projects visible to the user (admins: all; regular users: their own).
+export const load: PageServerLoad = async ({ locals }) => {
+	let ids: number[] | null = null;
+	if (!locals.user!.isAdmin) {
+		ids = await memberProjectIds(locals.user!.id);
+		if (ids.length === 0) return { archived: [] };
+	}
+	const scope = ids ? inArray(projects.id, ids) : undefined;
+
 	const rows = await db.query.projects.findMany({
-		where: eq(projects.archived, true),
+		where: scope ? and(eq(projects.archived, true), scope) : eq(projects.archived, true),
 		with: { pitches: { columns: { id: true } } },
 		orderBy: (p, { asc }) => [asc(p.name)]
 	});

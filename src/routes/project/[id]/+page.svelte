@@ -1,17 +1,16 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import ViewNav from '$lib/ViewNav.svelte';
-  import type { PageData, ActionData } from './$types';
+  import type { PageData } from './$types';
 
-  let { data, form }: { data: PageData; form: ActionData } = $props();
+  let { data }: { data: PageData } = $props();
 
   const world = $derived(data.world);
   const building = $derived(data.building);
   const seg = $derived(world.projectId === null ? 'internal' : String(world.projectId));
+  const isAdmin = $derived(data.user?.isAdmin ?? false);
 
-  let editingName = $state(false);
-
-  const appetiteLabel = (a: string) => (a === 'small' ? 'small · 2 sem' : 'big · 6 sem');
+  const appetiteLabel = (a: string) => (a === 'small' ? 'chico · 2 sem' : 'grande · 6 sem');
 
   function progress(scopes: { status: string }[]) {
     const live = scopes.filter((s) => s.status !== 'cut');
@@ -33,53 +32,18 @@
 <section class="dash">
   <div class="page-top">
     <ViewNav project={seg} />
-    <div class="top-actions">
-      <a class="btn primary" href="/pitch/new?project={world.projectId ?? ''}">＋ Nuevo pitch</a>
-      {#if world.projectId !== null}
-        <a class="btn ghost" href="/project/{seg}/settings">⚙ Ajustes</a>
-      {/if}
-    </div>
   </div>
 
   {#if world.project?.archived}
     <div class="archived-banner">
       <span>Este proyecto está <strong>archivado</strong> — oculto del listado.</span>
-      <form method="POST" action="?/unarchive" use:enhance>
-        <button class="btn primary sm" type="submit">Desarchivar</button>
-      </form>
+      {#if isAdmin}
+        <form method="POST" action="?/unarchive" use:enhance>
+          <button class="btn primary sm" type="submit">Desarchivar</button>
+        </form>
+      {/if}
     </div>
   {/if}
-
-  <header class="head">
-    <span class="eyebrow">Proyecto</span>
-    {#if editingName && world.projectId !== null}
-      <form
-        method="POST"
-        action="?/rename"
-        class="rename-form"
-        use:enhance={() => {
-          return async ({ update }) => {
-            await update();
-            editingName = false;
-          };
-        }}
-      >
-        <!-- svelte-ignore a11y_autofocus -->
-        <input name="name" value={world.label} aria-label="Nombre del proyecto" autofocus />
-        <button class="btn primary sm" type="submit">Guardar</button>
-        <button class="btn ghost sm" type="button" onclick={() => (editingName = false)}>Cancelar</button>
-      </form>
-    {:else}
-      <h1>
-        {world.label}
-        {#if world.projectId !== null}
-          <button class="edit-name" type="button" onclick={() => (editingName = true)} aria-label="Editar nombre">✎</button>
-        {/if}
-      </h1>
-    {/if}
-    {#if form?.renameError}<span class="err" role="alert">{form.renameError}</span>{/if}
-    <p class="sub">{building.length} en curso · {data.drafts.length} en preparación</p>
-  </header>
 
   <h2 class="section-title">En curso</h2>
   {#if building.length === 0}
@@ -115,19 +79,6 @@
     </div>
   {/if}
 
-  {#if data.drafts.length > 0}
-    <section class="drafts">
-      <h2 class="section-title">Borradores en preparación</h2>
-      <div class="draft-list">
-        {#each data.drafts as d (d.id)}
-          <a class="draft" href="/pitch/{d.id}">
-            <span class="draft-title">{d.title}</span>
-            <span class="draft-meta">{d.appetite === 'small' ? 'small' : 'big'}</span>
-          </a>
-        {/each}
-      </div>
-    </section>
-  {/if}
 </section>
 
 <style>
@@ -176,89 +127,10 @@
     color: #374151;
     font-size: 0.9rem;
   }
-  .head {
-    margin-bottom: 2rem;
-  }
-  .eyebrow {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #16a34a;
-  }
-  .top-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-  h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #111111;
-    margin: 0.2rem 0 0.3rem;
-  }
-  .edit-name {
-    font-size: 1rem;
-    background: transparent;
-    border: none;
-    color: #9ca3af;
-    cursor: pointer;
-    padding: 0.1rem 0.3rem;
-    border-radius: 6px;
-    vertical-align: middle;
-  }
-  .edit-name:hover {
-    color: #2563eb;
-    background: rgba(37, 99, 235, 0.08);
-  }
-  .rename-form {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin: 0.2rem 0 0.3rem;
-  }
-  .rename-form input {
-    font: inherit;
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #111111;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 0.2rem 0.5rem;
-    min-width: 240px;
-    flex: 1;
-  }
-  .rename-form input:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  }
   .btn.sm {
     padding: 0.45rem 0.9rem;
     font-size: 0.85rem;
   }
-  .btn.ghost {
-    background: transparent;
-    border-color: #d1d5db;
-    color: #374151;
-  }
-  .btn.ghost:hover {
-    border-color: #9ca3af;
-  }
-  .err {
-    display: block;
-    font-size: 0.8rem;
-    color: #dc2626;
-    margin: 0.2rem 0;
-  }
-  .sub {
-    color: #6b7280;
-    margin: 0;
-    font-size: 0.95rem;
-  }
-
   .section-title {
     font-size: 1.1rem;
     font-weight: 600;
@@ -398,39 +270,5 @@
   }
   .empty.small a {
     color: #2563eb;
-  }
-
-  .drafts {
-    margin-top: 2.5rem;
-  }
-  .draft-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .draft {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.7rem 1rem;
-    background: #ffffff;
-    border: 1px dashed #d1d5db;
-    border-radius: 10px;
-    text-decoration: none;
-    color: inherit;
-    transition: border-color 0.15s ease;
-  }
-  .draft:hover {
-    border-color: #2563eb;
-    border-style: solid;
-  }
-  .draft-title {
-    font-weight: 600;
-    color: #111111;
-  }
-  .draft-meta {
-    font-size: 0.8rem;
-    color: #6b7280;
   }
 </style>

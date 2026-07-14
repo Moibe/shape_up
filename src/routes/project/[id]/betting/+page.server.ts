@@ -4,12 +4,13 @@ import { db } from '$lib/server/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { pitches } from '$lib/server/db/schema';
 import { resolveProject } from '$lib/server/project-context';
+import { requireAdmin } from '$lib/server/access';
 import { derivePitchDates, todayIso, buildDays } from '$lib/server/pitch-dates';
 
 // Betting Table (per-pitch model): this project's shaped pitches. Betting = start
 // building, which gives the pitch its own clock (build + cooldown from today).
-export const load: PageServerLoad = async ({ params }) => {
-	const world = await resolveProject(params.id);
+export const load: PageServerLoad = async ({ params, locals }) => {
+	const world = await resolveProject(params.id, locals.user);
 	const projectMatch =
 		world.projectId === null ? isNull(pitches.projectId) : eq(pitches.projectId, world.projectId);
 
@@ -24,8 +25,9 @@ export const load: PageServerLoad = async ({ params }) => {
 
 export const actions: Actions = {
 	// Start building a shaped pitch: sets its own build/cooldown clock from today.
-	start: async ({ request, params }) => {
-		const world = await resolveProject(params.id);
+	start: async ({ request, params, locals }) => {
+		requireAdmin(locals.user);
+		const world = await resolveProject(params.id, locals.user);
 
 		const raw = (await request.formData()).get('pitchId');
 		const pitchId = Number(raw);

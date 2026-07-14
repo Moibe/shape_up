@@ -8,9 +8,11 @@
 </script>
 
 <div class="wrap">
-  <a class="back" href="/">← Volver al dashboard</a>
+  <a class="back" href="/project/{data.project.id}">← Volver al proyecto</a>
   <h1>Nuevo pitch</h1>
-  <p class="lead">Se crea como <strong>borrador</strong>. Cuando esté shaped, entra a la betting table.</p>
+  <p class="lead">
+    En <strong>{data.project.name}</strong>. Se crea como borrador; cuando esté shaped, entra a la betting table.
+  </p>
 
   <form
     method="POST"
@@ -22,13 +24,10 @@
       };
     }}
   >
-    <PitchFields
-      projects={data.projects}
-      values={form?.values ?? { projectId: data.preProject }}
-      errors={form?.errors ?? {}}
-    />
+    <input type="hidden" name="projectId" value={data.project.id} />
+    <PitchFields values={form?.values ?? {}} errors={form?.errors ?? {}} />
     <div class="actions">
-      <a class="btn ghost" href="/">Cancelar</a>
+      <a class="btn ghost" href="/project/{data.project.id}">Cancelar</a>
       <button class="btn primary" type="submit" disabled={submitting}>Crear pitch</button>
     </div>
   </form>

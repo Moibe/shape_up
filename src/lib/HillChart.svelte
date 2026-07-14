@@ -11,7 +11,11 @@
     isCore: boolean;
     status: string;
   };
-  let { scopes, onmove }: { scopes: Scope[]; onmove: (id: number, pos: number) => void } = $props();
+  let {
+    scopes,
+    onmove,
+    readonly = false
+  }: { scopes: Scope[]; onmove: (id: number, pos: number) => void; readonly?: boolean } = $props();
 
   const indexed = $derived(scopes.map((s, i) => ({ ...s, n: i + 1 })));
 
@@ -54,6 +58,7 @@
   }
 
   function down(e: PointerEvent, id: number) {
+    if (readonly) return;
     e.preventDefault();
     dragging = id;
     svgEl.setPointerCapture(e.pointerId);
@@ -72,6 +77,7 @@
   }
 
   function key(e: KeyboardEvent, id: number, current: number) {
+    if (readonly) return;
     let next = current;
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = Math.min(100, current + 5);
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = Math.max(0, current - 5);
@@ -84,7 +90,7 @@
   }
 </script>
 
-<div class="hill-wrap">
+<div class="hill-wrap" class:readonly>
   <svg
     bind:this={svgEl}
     viewBox="0 0 {VBW} {VBH}"
@@ -142,7 +148,8 @@
     {/each}
   </ul>
   <p class="tip">
-    Azul = core · verde = nice-to-have. Arrastra los puntos (o usa las flechas) para reflejar el avance real.
+    Azul = core · verde = nice-to-have.
+    {#if !readonly}Arrastra los puntos (o usa las flechas) para reflejar el avance real.{:else}(Solo lectura.){/if}
   </p>
 </div>
 
@@ -185,6 +192,9 @@
     stroke-width: 2.5;
     cursor: grab;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  }
+  .hill-wrap.readonly .dot {
+    cursor: default;
   }
   .dot.core {
     fill: #2563eb;

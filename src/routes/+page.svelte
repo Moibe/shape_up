@@ -1,12 +1,13 @@
 <script lang="ts">
   import { projectDotColor } from '$lib/project-colors';
+  import { APP_TITLE } from '$lib/app-config';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
 </script>
 
 <section class="home">
   <div class="page-top">
-    <span class="app-eyebrow">Shape Up Buzzword</span>
+    <span class="app-eyebrow">{APP_TITLE}</span>
     {#if data.user?.isAdmin}
       <a class="btn primary" href="/project/new">＋ Proyecto</a>
     {/if}

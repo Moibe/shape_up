@@ -1,6 +1,7 @@
 <script lang="ts">
   // Barra superior clara con tilt 3D al pasar el mouse. Marca + área de usuario.
   import Avatar from '$lib/Avatar.svelte';
+  import { APP_TITLE } from '$lib/app-config';
   let { user }: { user: { username: string } } = $props();
 
   let tiltX = $state(0);
@@ -37,7 +38,7 @@
       </defs>
       <path d="M2 20 L9 6 L12 12 L16 8 L22 20 Z" fill="url(#brand-mtn)" />
     </svg>
-    <span class="brand-title">Shape Up Buzzword</span>
+    <span class="brand-title">{APP_TITLE}</span>
   </a>
 
   <div class="user-area">

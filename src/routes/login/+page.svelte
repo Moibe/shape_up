@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { APP_TITLE } from '$lib/app-config';
   import type { ActionData } from './$types';
   let { form }: { form: ActionData } = $props();
   let showPw = $state(false);
@@ -17,7 +18,7 @@
         </defs>
         <path d="M2 20 L9 6 L12 12 L16 8 L22 20 Z" fill="url(#login-mtn)" />
       </svg>
-      <span class="brand-title">Shape Up Buzzword</span>
+      <span class="brand-title">{APP_TITLE}</span>
     </div>
 
     <h1>Iniciar sesión</h1>

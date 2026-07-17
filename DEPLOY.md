@@ -107,13 +107,18 @@ nada de deploy.
   - `apps.json` — entrada `id: shape_up`, `app_url: http://172.10.30.15:3300` (puerto
     libre, verificado contra los demás `.conf`; sin `public_url` todavía — falta dominio).
   - Verificado: JSON válido en ambos archivos, sin IDs ni puertos duplicados.
+  - `scripts/deploy.sh` **parcheado** (afecta a todos los proyectos, no solo shape_up):
+    `POST_BUILD` fallido ahora es fatal en vez de solo advertencia (ver gotcha #1).
 
 ### ⏳ Pendiente (requiere acceso al servidor — manual, fuera de lo que puedo ejecutar aquí)
 
 En el server interno `172.10.30.15` (`mbriseno`):
 
 1. `scp -r webhook-central/ mbriseno@172.10.30.15:/home/mbriseno/` (o `git pull` si ya
-   está clonado ahí) para que `hooks.json`/`apps.json`/`projects/shape_up.conf` lleguen.
+   está clonado ahí) para que `hooks.json`/`apps.json`/`projects/shape_up.conf` **y el
+   `scripts/deploy.sh` parcheado** lleguen — importante: sin esto, cualquier proyecto
+   con `POST_BUILD` (incluido `webhook-central-ui`) sigue corriendo la versión vieja
+   (no-fatal) hasta que se actualice en el server.
 2. `git clone git@github.com:Moibe/shape_up.git /home/mbriseno/code/shape_up`
 3. Crear `/home/mbriseno/code/shape_up/.env` (una vez): `PORT=3300`, `HOST=127.0.0.1`,
    `ORIGIN=https://<dominio-interno>` (pendiente elegir — ¿algo bajo `*.buzzword.com.mx`?),
@@ -140,6 +145,13 @@ el corte de `alphasummitindex.com` (hoy sirve a shape_up en el droplet:3200 vía
 1. **Migraciones en interno**: `webhook-central/scripts/deploy.sh` solo hace
    `git pull` + build + `pm2 restart` — **no corre migraciones**. Se cubre con
    `POST_BUILD="npm run db:migrate"` en el `.conf`. (En DO la Action ya llama `db:migrate`.)
+   ✅ **Fix aplicado** (revisión adversarial 2026-07-13): `deploy.sh` trataba un
+   `POST_BUILD` fallido como advertencia no-fatal — si la migración fallaba, igual
+   reiniciaba pm2 con el build nuevo contra un esquema desactualizado, y el dashboard
+   marcaba el deploy como "success". Ahora `POST_BUILD` es fatal (`exit 1`), igual que
+   el resto de los pasos del script. Verificado que era seguro: el único otro
+   consumidor de `POST_BUILD` hoy es `webhook-central-ui.conf` (symlinks deterministas,
+   sin riesgo de romperse).
 2. **Título de la app** ✅ **hecho**: era hardcodeado en 3 sitios (TopNav, home, login).
    Ahora viene de `PUBLIC_APP_TITLE` (`src/lib/app-config.ts`, `$env/dynamic/public` —
    se lee en runtime, no se hornea en el build), default `"Shape Up Buzzword"` si el

@@ -161,10 +161,22 @@ cuando se decida cortar).
    sin conflictos.
 4. **webhook-central first-run manual**: `deploy.sh` no clona ni hace `pm2 start` — el
    primer clone + primer `pm2 start` son a mano (pasos 2–5 de §3).
+5. **adapter-node NO autocarga `.env`** ✅ **fix aplicado (2026-07-21)**: `build/env.js`
+   (generado por `@sveltejs/adapter-node`) solo lee `process.env` tal cual — no hay
+   autoload de dotenv. El primer `pm2 start` en el servidor se hizo sin pasarle el
+   `.env`, así que Node arrancó con sus defaults (`PORT=3000`, `HOST=0.0.0.0`) **sin
+   error visible**: pm2 marcaba "online" pero la app escuchaba en el puerto
+   equivocado y `http://172.10.30.15:3300` no respondía. Fix: usar el flag nativo de
+   Node `--env-file=.env` al arrancar (`pm2 start ... --node-args="--env-file=.env"`),
+   igual que ya hace `db:migrate` en `package.json`. Documentado en
+   `webhook-central/projects/shape_up.conf`. De paso, `HOST` se cambió de
+   `127.0.0.1` a `0.0.0.0` en el `.env` del servidor: esta app no tiene nginx
+   delante todavía, así que necesita bindear a todas las interfaces para que el
+   acceso directo por IP:puerto (como el resto de las apps del servidor) funcione.
 
 ## Orden de ejecución sugerido
 
 1. ~~(Código) Parametrizar el título con `PUBLIC_APP_TITLE`~~ ✅ hecho.
-2. ~~shape_up → interno: preparar repo + webhook-central~~ ✅ hecho (código/config
-   listos); **falta la parte manual en el servidor** (§3 "⏳ Pendiente").
+2. ~~shape_up → interno: preparar repo + webhook-central~~ ✅ hecho y verificado en
+   servidor (ver §3).
 3. shape_up_moibe → DO (§1 + §2): pendiente, se retoma después ("luego vemos moibe").

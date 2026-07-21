@@ -3,6 +3,14 @@ import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypt
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { users, sessions } from '$lib/server/db/schema';
+import { env } from '$env/dynamic/private';
+
+// SvelteKit's cookies.set() defaults `secure` to true unless the request host is
+// literally "localhost" — so on a real deployment reached over plain HTTP by IP
+// (no TLS yet), the browser silently drops the Set-Cookie header and login just
+// bounces back with no visible error. Derive it from ORIGIN (the deploy's own
+// declared scheme) instead: https:// deploys keep Secure, http:// ones don't.
+const SECURE_COOKIES = (env.ORIGIN ?? '').startsWith('https://');
 
 const DAY = 1000 * 60 * 60 * 24;
 const SESSION_TTL = 30 * DAY;
@@ -81,6 +89,7 @@ export function setSessionCookie(cookies: Cookies, token: string, expiresAt: num
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
+		secure: SECURE_COOKIES,
 		expires: new Date(expiresAt)
 	});
 }

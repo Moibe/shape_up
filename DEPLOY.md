@@ -189,6 +189,18 @@ cuando se decida cortar).
    Para un server real se agregó `npm run db:seed:admin` (`scripts/seed-admin.mjs`,
    nuevo) — mismo admin/admin, **sin** los datos demo. Pendiente correrlo en el
    servidor interno (§3, paso 8).
+7. **Cookie de sesión con `Secure` sobre HTTP plano** ✅ **fix aplicado (2026-07-21)**:
+   `cookies.set()` de SvelteKit pone `Secure` por defecto salvo que el host sea
+   *literalmente* `localhost` — cualquier otro host (una IP, un dominio) sobre HTTP
+   sin TLS hace que el navegador **descarte la cookie en silencio**: el login
+   parece "no hacer nada" (POST 200, pero la siguiente carga no reconoce sesión y
+   rebota a `/login`, sin ningún error en consola). Pasó exactamente así en el
+   servidor interno (accede por `172.10.30.15:3300`, sin nginx/TLS todavía). Fix:
+   `src/lib/server/auth.ts` ahora deriva `secure` de si `ORIGIN` empieza con
+   `https://` en vez de dejar el default de SvelteKit — reproducido y verificado
+   local (con y sin TLS simulado) antes de aplicarlo. **Requiere rebuild + restart**
+   en cualquier servidor ya corriendo (a diferencia del seed, este sí es código):
+   `git pull && npm run build && pm2 restart shape-up`.
 
 ## Orden de ejecución sugerido
 

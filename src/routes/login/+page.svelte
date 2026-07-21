@@ -1,9 +1,15 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { untrack } from 'svelte';
   import { APP_TITLE } from '$lib/app-config';
   import type { ActionData } from './$types';
   let { form }: { form: ActionData } = $props();
   let showPw = $state(false);
+  // bind: (no value={...}) — un enlace de una sola vía se re-aplica en CUALQUIER
+  // re-render (p.ej. al togglear showPw) y pisaba lo ya escrito con el valor viejo
+  // de `form`. Con bind: el input es dueño de su propio valor una vez montado;
+  // `form?.username` solo siembra el valor inicial (tras un submit fallido).
+  let username = $state(untrack(() => form?.username ?? ''));
 </script>
 
 <div class="login-wrap">
@@ -26,7 +32,7 @@
     <form method="POST" use:enhance>
       <div class="field">
         <label for="username">Usuario</label>
-        <input id="username" name="username" type="text" autocomplete="username" value={form?.username ?? ''} />
+        <input id="username" name="username" type="text" autocomplete="username" bind:value={username} />
       </div>
       <div class="field">
         <label for="password">Contraseña</label>

@@ -1,8 +1,9 @@
 # Estrategia de deploy y sincronización — shape_up ↔ shape_up_moibe
 
-> Estado: **§3 (shape_up → interno) en ejecución** — repo y `webhook-central` ya
-> preparados; faltan los pasos manuales en el servidor (ver §3). **§2 (moibe → DO)
-> pendiente**, se retoma después.
+> Estado: **§3 (shape_up → interno) completo y verificado (2026-07-21)** — repo
+> clonado, `.env` creado, build + `pm2 start` hechos, `webhook-listener` recargado
+> y probado con 3 deploys de prueba exitosos (`no_changes`) vía la UI. **§2 (moibe
+> → DO) pendiente**, se retoma después.
 > Regla de oro: el **código de la app es idéntico** en los dos repos. Lo único que
 > difiere vive **fuera del código de la app**: el `.env` de cada servidor y el
 > "plumbing" de deploy (que por fuerza difiere: DO = push/Action, interno = pull).
@@ -110,33 +111,33 @@ nada de deploy.
   - `scripts/deploy.sh` **parcheado** (afecta a todos los proyectos, no solo shape_up):
     `POST_BUILD` fallido ahora es fatal en vez de solo advertencia (ver gotcha #1).
 
-### ⏳ Pendiente (requiere acceso al servidor — manual, fuera de lo que puedo ejecutar aquí)
+### ✅ Hecho y verificado (2026-07-21)
 
 En el server interno `172.10.30.15` (`mbriseno`):
 
-1. `scp -r webhook-central/ mbriseno@172.10.30.15:/home/mbriseno/` (o `git pull` si ya
-   está clonado ahí) para que `hooks.json`/`apps.json`/`projects/shape_up.conf` **y el
-   `scripts/deploy.sh` parcheado** lleguen — importante: sin esto, cualquier proyecto
-   con `POST_BUILD` (incluido `webhook-central-ui`) sigue corriendo la versión vieja
-   (no-fatal) hasta que se actualice en el server.
-2. `git clone git@github.com:Moibe/shape_up.git /home/mbriseno/code/shape_up`
-3. Crear `/home/mbriseno/code/shape_up/.env` (una vez): `PORT=3300`, `HOST=127.0.0.1`,
-   `ORIGIN=https://<dominio-interno>` (pendiente elegir — ¿algo bajo `*.buzzword.com.mx`?),
-   `DATABASE_URL=./local.db`, `ADMIN_PASSWORD=...`, `PUBLIC_APP_TITLE=Shape Up Buzzword`.
-4. `cd /home/mbriseno/code/shape_up && npm ci && npm run db:migrate && npm run build`
-5. `pm2 start build/index.js --name shape-up --cwd /home/mbriseno/code/shape_up` → `pm2 save`
-   (adapter-node autocarga el `.env` del paso 3 — no hace falta exportar nada a mano).
-6. `pm2 restart webhook-listener` para que recargue el nuevo `hooks.json`.
-7. Probar: `curl -X POST http://172.10.30.15:8090/hooks/despliegue-shape-up` → debe
-   hacer `git pull` + build + `pm2 restart shape-up` (revisa `pm2 logs shape-up` y
-   `logs/deploys.jsonl` en `webhook-central`).
+1. ✅ `webhook-central/` en el server tiene `hooks.json`/`apps.json`/
+   `projects/shape_up.conf` y el `scripts/deploy.sh` parcheado (POST_BUILD fatal).
+2. ✅ `git clone` hecho en `/home/mbriseno/code/shape_up` — `main`, working tree limpio,
+   al día con `origin/main`.
+3. ✅ `.env` creado: `PORT=3300`, `HOST=127.0.0.1`, `ORIGIN=http://172.10.30.15:3300`
+   (dominio interno **todavía sin decidir** — ver pendiente abajo), `DATABASE_URL=./local.db`,
+   `PUBLIC_APP_TITLE=Shape Up Buzzword`. Sin `ADMIN_PASSWORD`: el código no lo usa, no
+   hace falta.
+4. ✅ `npm ci` + `db:migrate` + build hechos (`build/`, `local.db` con migraciones aplicadas).
+5. ✅ `pm2 start build/index.js --name shape-up` corriendo (`pm2 status` → online).
+6. ✅ `webhook-listener` reiniciado después de que se agregó el hook (confirmado por
+   timestamps: restart posterior a la edición de `hooks.json`).
+7. ✅ Probado end-to-end: 3 deploys de prueba vía la UI, los 3 `no_changes` exitosos
+   (`logs/deploys.jsonl` y `logs/shape_up/*.log` en `webhook-central`).
 
-Después de esto, cada deploy = botón "Deploy" en `webhook-central-ui` (o el curl de
-arriba). Es **pull**: el server jala de GitHub; nadie entra por SSH.
+Cada deploy = botón "Deploy" en `webhook-central-ui` (o
+`curl -X POST http://172.10.30.15:8090/hooks/despliegue-shape-up`). Es **pull**: el
+server jala de GitHub; nadie entra por SSH.
 
-**Pendiente de decidir:** dominio interno (para `ORIGIN` y `public_url`), y coordinar
-el corte de `alphasummitindex.com` (hoy sirve a shape_up en el droplet:3200 vía
-`nx-routes` — ese archivo/dominio se libera cuando esto quede arriba).
+**Pendiente de decidir:** dominio interno (para `ORIGIN` y `public_url` — hoy corre
+solo por IP:puerto, sin HTTPS), y coordinar el corte de `alphasummitindex.com` (hoy
+sirve a shape_up en el droplet:3200 vía `nx-routes` — ese archivo/dominio se libera
+cuando se decida cortar).
 
 ---
 

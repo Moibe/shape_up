@@ -1,0 +1,4 @@
+# package-lock.json es generado por npm con LF; con core.autocrlf=true en Windows
+# el checkout lo convierte a CRLF en disco y git status lo marca "modified" por
+# puro fin de línea, sin cambio de contenido real. Se excluye de esa conversión.
+package-lock.json -text

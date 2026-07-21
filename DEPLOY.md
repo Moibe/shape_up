@@ -119,16 +119,25 @@ En el server interno `172.10.30.15` (`mbriseno`):
    `projects/shape_up.conf` y el `scripts/deploy.sh` parcheado (POST_BUILD fatal).
 2. ✅ `git clone` hecho en `/home/mbriseno/code/shape_up` — `main`, working tree limpio,
    al día con `origin/main`.
-3. ✅ `.env` creado: `PORT=3300`, `HOST=127.0.0.1`, `ORIGIN=http://172.10.30.15:3300`
+3. ✅ `.env` creado: `PORT=3300`, `HOST=0.0.0.0` (ver gotcha #5 — sin nginx delante
+   todavía, necesita bindear a todas las interfaces), `ORIGIN=http://172.10.30.15:3300`
    (dominio interno **todavía sin decidir** — ver pendiente abajo), `DATABASE_URL=./local.db`,
    `PUBLIC_APP_TITLE=Shape Up Buzzword`. Sin `ADMIN_PASSWORD`: el código no lo usa, no
    hace falta.
 4. ✅ `npm ci` + `db:migrate` + build hechos (`build/`, `local.db` con migraciones aplicadas).
-5. ✅ `pm2 start build/index.js --name shape-up` corriendo (`pm2 status` → online).
+5. ✅ `pm2 start build/index.js --name shape-up --node-args="--env-file=.env"` corriendo
+   (`pm2 status` → online; ver gotcha #5 — el primer intento sin `--node-args` sirvió en
+   el puerto/host equivocado).
 6. ✅ `webhook-listener` reiniciado después de que se agregó el hook (confirmado por
    timestamps: restart posterior a la edición de `hooks.json`).
 7. ✅ Probado end-to-end: 3 deploys de prueba vía la UI, los 3 `no_changes` exitosos
    (`logs/deploys.jsonl` y `logs/shape_up/*.log` en `webhook-central`).
+8. ⏳ **Pendiente — falta sembrar el admin**: los pasos arriba corrieron `db:migrate`
+   pero no `db:seed:admin` (ese script no existía todavía en el checkout del servidor
+   cuando se hizo esto). Sin él, la tabla `users` está vacía y **nadie puede entrar**
+   todavía. Falta correr, en el servidor: `cd /home/mbriseno/code/shape_up && git pull
+   && npm run db:seed:admin` (crea `admin`/`admin`, sin datos demo — cámbialo en "Mi
+   usuario" tras el primer login).
 
 Cada deploy = botón "Deploy" en `webhook-central-ui` (o
 `curl -X POST http://172.10.30.15:8090/hooks/despliegue-shape-up`). Es **pull**: el
@@ -173,6 +182,13 @@ cuando se decida cortar).
    `127.0.0.1` a `0.0.0.0` en el `.env` del servidor: esta app no tiene nginx
    delante todavía, así que necesita bindear a todas las interfaces para que el
    acceso directo por IP:puerto (como el resto de las apps del servidor) funcione.
+6. **Cada servidor tiene su propia DB (SQLite), no compartida**: `db:migrate` solo
+   crea/actualiza tablas — **no** crea el usuario admin. Sin sembrarlo, un server
+   nuevo queda con `users` vacío y nadie puede entrar (no hay auto-registro).
+   `npm run db:seed` (el de siempre, local) crea admin **+ proyecto/pitches demo**.
+   Para un server real se agregó `npm run db:seed:admin` (`scripts/seed-admin.mjs`,
+   nuevo) — mismo admin/admin, **sin** los datos demo. Pendiente correrlo en el
+   servidor interno (§3, paso 8).
 
 ## Orden de ejecución sugerido
 

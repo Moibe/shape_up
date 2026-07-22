@@ -11,6 +11,11 @@
     if (form?.pwError || form?.pwChanged) pwOpen = true;
   });
 
+  // Ojito independiente por campo.
+  let showCurrent = $state(false);
+  let showNext = $state(false);
+  let showConfirm = $state(false);
+
   function fmt(iso: string | null) {
     if (!iso) return '—';
     return new Date(`${iso.replace(' ', 'T')}Z`).toLocaleDateString('es-MX', {
@@ -63,15 +68,30 @@
     <form method="POST" action="?/changePassword" use:enhance>
       <div class="field">
         <label for="current">Contraseña actual</label>
-        <input id="current" name="current" type="password" autocomplete="current-password" />
+        <div class="pw-wrap">
+          <input id="current" name="current" type={showCurrent ? 'text' : 'password'} autocomplete="current-password" />
+          <button type="button" class="eye" onclick={() => (showCurrent = !showCurrent)} aria-label={showCurrent ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showCurrent}>
+            {@render eyeIcon(showCurrent)}
+          </button>
+        </div>
       </div>
       <div class="field">
         <label for="next">Nueva contraseña</label>
-        <input id="next" name="next" type="password" autocomplete="new-password" />
+        <div class="pw-wrap">
+          <input id="next" name="next" type={showNext ? 'text' : 'password'} autocomplete="new-password" />
+          <button type="button" class="eye" onclick={() => (showNext = !showNext)} aria-label={showNext ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showNext}>
+            {@render eyeIcon(showNext)}
+          </button>
+        </div>
       </div>
       <div class="field">
         <label for="confirm">Confirmar nueva</label>
-        <input id="confirm" name="confirm" type="password" autocomplete="new-password" />
+        <div class="pw-wrap">
+          <input id="confirm" name="confirm" type={showConfirm ? 'text' : 'password'} autocomplete="new-password" />
+          <button type="button" class="eye" onclick={() => (showConfirm = !showConfirm)} aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showConfirm}>
+            {@render eyeIcon(showConfirm)}
+          </button>
+        </div>
       </div>
       {#if form?.pwError}<span class="err" role="alert">{form.pwError}</span>{/if}
       {#if form?.pwChanged}<span class="ok" role="status">Contraseña actualizada.</span>{/if}
@@ -80,6 +100,22 @@
     {/if}
   </div>
 </section>
+
+{#snippet eyeIcon(open: boolean)}
+  {#if open}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  {:else}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  {/if}
+{/snippet}
 
 <style>
   .wrap {
@@ -221,6 +257,41 @@
     outline: none;
     border-color: #2563eb;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+  .pw-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 220px;
+    max-width: 100%;
+  }
+  .pw-wrap input {
+    width: 100%;
+    padding-right: 2.6rem;
+  }
+  .eye {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .eye:hover {
+    color: #2563eb;
+  }
+  .eye svg {
+    width: 18px;
+    height: 18px;
   }
   .err {
     display: block;

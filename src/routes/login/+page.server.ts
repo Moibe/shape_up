@@ -24,7 +24,8 @@ export const actions: Actions = {
 
 		const [u] = await db.select().from(users).where(eq(users.username, username));
 		// Verify even on unknown user is skipped; message is generic to avoid leaking
-		// which usernames exist.
+		// which usernames exist. Mismo mensaje si la cuenta existe pero aún no se
+		// activó (passwordHash null) — verifyPassword ya es null-safe.
 		if (!u || !verifyPassword(password, u.passwordHash)) {
 			return fail(400, { error: 'Usuario o contraseña incorrectos.', username });
 		}

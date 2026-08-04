@@ -6,10 +6,12 @@ import { projects } from '$lib/server/db/schema';
 import { memberProjectIds } from '$lib/server/access';
 
 // Auth guard for the whole app: everything requires a logged-in user except the
-// login page. Sidebar projects are scoped by visibility: admins see all, regular
-// users only the projects they're a member of.
+// login page and invite links (a not-yet-activated user has no session yet).
+// Sidebar projects are scoped by visibility: admins see all, regular users only
+// the projects they're a member of.
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-	if (!locals.user && url.pathname !== '/login') {
+	const isPublic = url.pathname === '/login' || url.pathname.startsWith('/invite/');
+	if (!locals.user && !isPublic) {
 		throw redirect(303, '/login');
 	}
 	if (!locals.user) {

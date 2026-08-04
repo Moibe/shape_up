@@ -8,6 +8,22 @@
   // data.user viene del layout (usuario en sesión); data.users de esta página.
   const meId = $derived(data.user?.id ?? -1);
 
+  let urlInput: HTMLInputElement | undefined = $state();
+  let copyState = $state<'idle' | 'copied' | 'manual'>('idle');
+  async function copyInviteUrl(url: string) {
+    try {
+      // navigator.clipboard no existe en contexto no-seguro (HTTP plano sin TLS,
+      // que esta app soporta explícitamente — ver SECURE_COOKIES en auth.ts).
+      if (!navigator.clipboard) throw new Error('Clipboard API no disponible');
+      await navigator.clipboard.writeText(url);
+      copyState = 'copied';
+    } catch {
+      urlInput?.select();
+      copyState = 'manual';
+    }
+    setTimeout(() => (copyState = 'idle'), 2000);
+  }
+
   function fmt(iso: string) {
     return new Date(`${iso.replace(' ', 'T')}Z`).toLocaleDateString('es-MX', {
       day: 'numeric',
@@ -22,6 +38,28 @@
   <h1>Usuarios</h1>
   <p class="lead">Quiénes pueden entrar al sistema. Da de alta desde aquí.</p>
 
+  {#if form?.inviteUrl}
+    <div class="invite-banner">
+      <p>
+        Link de invitación para <strong>{form.forUsername}</strong> — cómpartelo para que ponga su
+        propia contraseña (vence en 7 días, un solo uso):
+      </p>
+      <div class="invite-row">
+        <input
+          class="invite-url"
+          type="text"
+          readonly
+          value={form.inviteUrl}
+          bind:this={urlInput}
+          onclick={(e) => e.currentTarget.select()}
+        />
+        <button class="btn primary sm" type="button" onclick={() => copyInviteUrl(form?.inviteUrl ?? '')}>
+          {#if copyState === 'copied'}¡Copiado!{:else if copyState === 'manual'}Selecciona y Ctrl+C{:else}Copiar{/if}
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <div class="list">
     {#each data.users as u (u.id)}
       <div class="row">
@@ -31,40 +69,50 @@
             <span class="name">
               {u.username}
               {#if u.isAdmin}<span class="admin-badge">admin</span>{/if}
+              {#if u.pendingActivation}<span class="pending-badge">pendiente de activar</span>{/if}
               {#if u.id === meId}<span class="you">tú</span>{/if}
             </span>
             <span class="meta">desde {fmt(u.createdAt)}</span>
           </div>
         </div>
-        {#if u.id !== meId}
-          <form method="POST" action="?/delete" use:enhance>
-            <input type="hidden" name="userId" value={u.id} />
-            <button
-              class="btn danger sm"
-              type="button"
-              onclick={(e) =>
-                confirmAndSubmit(e.currentTarget, {
-                  title: 'Borrar usuario',
-                  message: `¿Borrar al usuario "${u.username}"? Perderá el acceso.`,
-                  confirmLabel: 'Borrar',
-                  variant: 'danger'
-                })}
-            >
-              Borrar
-            </button>
-          </form>
-        {/if}
+        <div class="row-actions">
+          {#if u.pendingActivation}
+            <form method="POST" action="?/regenerateInvite" use:enhance>
+              <input type="hidden" name="userId" value={u.id} />
+              <button class="btn ghost sm" type="submit">Reenviar invitación</button>
+            </form>
+          {/if}
+          {#if u.id !== meId}
+            <form method="POST" action="?/delete" use:enhance>
+              <input type="hidden" name="userId" value={u.id} />
+              <button
+                class="btn danger sm"
+                type="button"
+                onclick={(e) =>
+                  confirmAndSubmit(e.currentTarget, {
+                    title: 'Borrar usuario',
+                    message: `¿Borrar al usuario "${u.username}"? Perderá el acceso.`,
+                    confirmLabel: 'Borrar',
+                    variant: 'danger'
+                  })}
+              >
+                Borrar
+              </button>
+            </form>
+          {/if}
+        </div>
       </div>
     {/each}
   </div>
   {#if form?.deleteError}<span class="err" role="alert">{form.deleteError}</span>{/if}
+  {#if form?.inviteError}<span class="err" role="alert">{form.inviteError}</span>{/if}
 
   <div class="add">
     <h2>Agregar usuario</h2>
+    <p class="hint">Sin contraseña aquí — se le genera un link para que ponga la suya.</p>
     <form method="POST" action="?/create" use:enhance>
       <div class="fields">
         <input name="username" type="text" placeholder="Usuario" value={form?.username ?? ''} autocomplete="off" />
-        <input name="password" type="password" placeholder="Contraseña (mín. 4)" autocomplete="new-password" />
         <button class="btn primary" type="submit">Agregar</button>
       </div>
       <label class="chk"><input type="checkbox" name="isAdmin" /> Administrador (puede gestionar usuarios)</label>
@@ -151,6 +199,21 @@
     border-radius: 999px;
     padding: 0.1rem 0.45rem;
   }
+  .pending-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+  }
+  .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .chk {
     display: inline-flex;
     align-items: center;
@@ -176,7 +239,34 @@
     font-size: 1rem;
     font-weight: 700;
     color: #111111;
+    margin: 0 0 0.3rem;
+  }
+  .hint {
+    color: #6b7280;
+    font-size: 0.82rem;
     margin: 0 0 0.8rem;
+  }
+  .invite-banner {
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.2rem;
+  }
+  .invite-banner p {
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+    color: #1f2937;
+  }
+  .invite-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .invite-url {
+    flex: 1;
+    font-size: 0.8rem;
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+    background: #ffffff;
   }
   .fields {
     display: flex;
@@ -217,6 +307,14 @@
   }
   .btn.primary:hover {
     background: #1d4ed8;
+  }
+  .btn.ghost {
+    background: transparent;
+    border-color: #d1d5db;
+    color: #374151;
+  }
+  .btn.ghost:hover {
+    border-color: #9ca3af;
   }
   .btn.danger {
     background: transparent;

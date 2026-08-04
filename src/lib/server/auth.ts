@@ -2,7 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { users, sessions } from '$lib/server/db/schema';
+import { users, sessions, invites } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 
 // SvelteKit's cookies.set() defaults `secure` to true unless the request host is
@@ -26,7 +26,9 @@ export function hashPassword(password: string): string {
 	return `${salt.toString('hex')}:${hash.toString('hex')}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export function verifyPassword(password: string, stored: string | null): boolean {
+	// null = cuenta creada por el admin, todavía sin activar (sin contraseña propia).
+	if (!stored) return false;
 	const [saltHex, hashHex] = stored.split(':');
 	if (!saltHex || !hashHex) return false;
 	const hash = scryptSync(password, Buffer.from(saltHex, 'hex'), 64);
@@ -96,4 +98,57 @@ export function setSessionCookie(cookies: Cookies, token: string, expiresAt: num
 
 export function deleteSessionCookie(cookies: Cookies) {
 	cookies.delete(SESSION_COOKIE, { path: '/' });
+}
+
+// ── Invites (el usuario pone su propia contraseña al activar su cuenta) ──────
+const INVITE_TTL = 7 * DAY;
+
+export function generateInviteToken(): string {
+	return randomBytes(32).toString('base64url');
+}
+
+// Mismo hash-del-token que sessions: el token crudo solo vive en el link que se
+// comparte, la DB solo guarda su SHA-256.
+const inviteId = (token: string) => createHash('sha256').update(token).digest('hex');
+
+export async function createInvite(token: string, userId: number) {
+	const id = inviteId(token);
+	const expiresAt = Date.now() + INVITE_TTL;
+	await db.insert(invites).values({ id, userId, expiresAt });
+	return { id, userId, expiresAt };
+}
+
+export async function validateInviteToken(
+	token: string
+): Promise<{ userId: number; username: string } | null> {
+	const id = inviteId(token);
+	const [row] = await db.select().from(invites).where(eq(invites.id, id));
+	if (!row) return null;
+
+	if (Date.now() >= row.expiresAt) {
+		await db.delete(invites).where(eq(invites.id, id));
+		return null;
+	}
+
+	const [u] = await db
+		.select({ username: users.username, passwordHash: users.passwordHash })
+		.from(users)
+		.where(eq(users.id, row.userId));
+	// Cuenta ya activada (o borrada): el invite quedó obsoleto — p.ej. si el admin
+	// generó un link nuevo justo cuando la persona activaba con uno anterior, el
+	// nuevo también debe quedar inválido, no solo el que se usó. Se rechaza aquí,
+	// en la validación misma, en vez de confiar en que regenerateInvite nunca corra
+	// en paralelo con una activación.
+	if (!u || u.passwordHash !== null) {
+		await db.delete(invites).where(eq(invites.id, id));
+		return null;
+	}
+	return { userId: row.userId, username: u.username };
+}
+
+// Al activar la cuenta se invalidan TODOS los invites del usuario (no solo el
+// usado) — si el admin regeneró el link más de una vez, los viejos ya no sirven
+// para volver a poner una contraseña una vez que la cuenta quedó activa.
+export async function consumeInvitesForUser(userId: number) {
+	await db.delete(invites).where(eq(invites.userId, userId));
 }

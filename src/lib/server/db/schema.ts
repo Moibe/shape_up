@@ -120,8 +120,9 @@ export const tasks = sqliteTable('tasks', {
 export const users = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	username: text('username').notNull().unique(),
-	// scrypt hash stored as "saltHex:hashHex".
-	passwordHash: text('password_hash').notNull(),
+	// scrypt hash stored as "saltHex:hashHex". NULL until the user activates their
+	// account via an invite link (an admin-created user has no password yet).
+	passwordHash: text('password_hash'),
 	// Admins manage users; regular users don't see the Usuarios menu.
 	isAdmin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
 	createdAt: text('created_at')
@@ -131,6 +132,16 @@ export const users = sqliteTable('users', {
 
 export const sessions = sqliteTable('sessions', {
 	// SHA-256 of the session token (the raw token lives only in the cookie).
+	id: text('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	expiresAt: integer('expires_at').notNull() // unix ms
+});
+
+// One-time invite link: an admin-created user has no password until they open
+// this and set one themselves. Same hash-the-token pattern as sessions.
+export const invites = sqliteTable('invites', {
 	id: text('id').primaryKey(),
 	userId: integer('user_id')
 		.notNull()
@@ -197,3 +208,4 @@ export type Scope = typeof scopes.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type Invite = typeof invites.$inferSelect;

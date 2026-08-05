@@ -75,6 +75,12 @@
           <span class="name">{c.name}</span>
         </a>
       {/each}
+      {#if projects.length === 0 && isAdmin}
+        <a href="/project/new" class="nav-item new-project">
+          <span class="plus" aria-hidden="true">＋</span>
+          <span class="name">Nuevo proyecto</span>
+        </a>
+      {/if}
     </nav>
 
     {#if archivedCount > 0}
@@ -189,6 +195,22 @@
   }
   .nav-item[aria-current='page'] .dot {
     background: #2563eb;
+  }
+  .new-project {
+    color: #2563eb;
+    font-weight: 600;
+    border: 1px dashed rgba(37, 99, 235, 0.4);
+  }
+  .new-project:hover {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.6);
+    color: #1d4ed8;
+  }
+  .plus {
+    width: 10px;
+    flex-shrink: 0;
+    text-align: center;
+    font-weight: 700;
   }
   .archived-link {
     margin-top: 0.5rem;

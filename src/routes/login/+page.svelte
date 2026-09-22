@@ -14,7 +14,6 @@
 
 <div class="login-wrap">
   <div class="card">
-    <div class="test-banner">🚀 Cambio de prueba — pipeline dev → prod</div>
     <div class="brand">
       <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
         <defs>
@@ -90,16 +89,6 @@
     border-radius: 16px;
     padding: 2rem;
     box-shadow: 0 10px 40px rgba(15, 23, 42, 0.1);
-  }
-  .test-banner {
-    background: #facc15;
-    color: #111111;
-    font-weight: 700;
-    text-align: center;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    margin-bottom: 1.25rem;
-    font-size: 0.85rem;
   }
   .brand {
     display: flex;
